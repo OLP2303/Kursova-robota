@@ -1,0 +1,51 @@
+﻿@page "/attendance"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using BlazorApp2.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@attribute [Authorize(Roles = "Administrators")]
+<h1>Відвідуваність подій</h1>
+<table class="table">
+    <thead >
+        <tr>
+            <th>Назва події</th>
+            <th>Кількість відвідувачів</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var eventAttendance in eventAttendances)
+        {
+            <tr>
+                <td>@eventAttendance.EventName</td>
+                <td>@eventAttendance.AttendanceCount</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private List<EventAttendance> eventAttendances = new List<EventAttendance>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        eventAttendances = await DbContext.EventsAndUsers
+            .GroupBy(eu => eu.EventId)
+            .Select(g => new EventAttendance
+                {
+                    EventName = g.FirstOrDefault().Event.Name, 
+                    AttendanceCount = g.Count()
+                })
+            .ToListAsync();
+    }
+
+    public class EventAttendance
+    {
+        public string EventName { get; set; }
+        public int AttendanceCount { get; set; }
+    }
+}
+

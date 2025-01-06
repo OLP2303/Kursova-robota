@@ -1,0 +1,235 @@
+﻿@page "/OrganiserPage"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using BlazorApp2.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@attribute [Authorize(Roles = "Organiser,Administrators")]
+<link href="css/styleEvent.css" rel="stylesheet" />
+<PageTitle>OrganiserPage</PageTitle>
+<h1>Список подій які ви організовуєте </h1>
+@if (showAddButton)
+{
+    <button class="custom-button" @onclick="ShowForm">
+    <span>Додати подію</span>
+    <i class="plus-icon">+</i>
+</button>}
+    @if (showForm)
+    {
+
+        <h4>@(showEditForm ? "Редагувати подію" : "Додати нову подію")</h4>
+        <EditForm Model="Input" OnValidSubmit="@(showEditForm ? HandleEditSubmit : HandleValidSubmit)">
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Name" class="form-control" placeholder="Назва події" />
+                <label for="name">Назва</label>
+                <ValidationMessage For="() => Input.Name" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.Location" class="form-control" placeholder="Місце проведення" />
+                <label for="location">Місце проведення</label>
+                <ValidationMessage For="() => Input.Location" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputText @bind-Value="Input.DateTimeq" class="form-control" type="datetime-local" />
+                <label for="datetime">Дата та час події</label>
+                <ValidationMessage For="() => Input.DateTimeq" class="text-danger" />
+            </div>
+            <div class="form-floating mb-3">
+                <InputTextArea @bind-Value="Input.Description" class="form-control" placeholder="Опис події" />
+                <label for="description">Опис</label>
+                <ValidationMessage For="() => Input.Description" class="text-danger" />
+            </div>
+        <div class="inpdiv">
+            <label for="file-upload" class="form-label">Завантажити зображення події</label>
+            <InputFile id="file-upload" OnChange="HandleFileUpload" class="custom-file-input" />
+            <ValidationMessage For="() => Input.EventPicture" class="text-danger" />
+        </div>
+        <button type="submit" class="buttonAddEdit">@((showEditForm) ? "Зберегти зміни" : "Додати подію")</button>
+            @if (showForm&&!showEditForm)
+            {
+                <button type="button" class="buttonCancel" @onclick="CancelAdd">Скасувати додавання</button>
+            }
+            @if (showEditForm)
+            {
+            <button type="button" class="buttonCancel" @onclick="CancelEdit">Скасувати</button>
+            }
+        </EditForm>
+    }
+    @if (events == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+      
+        <div class="row row-cols-1 row-cols-md-3 g-4 mt-4">
+            @foreach (var eventItem in events)
+            {
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        @if (eventItem.EventPicture != null)
+                        {
+                            
+                        <img src="data:image/jpeg;base64,@Convert.ToBase64String(eventItem.EventPicture)" alt="Фото події" style="max-width: 400px;max-height: 250px;" />
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title">@eventItem.Name</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">@eventItem.Date.ToString("f")</h6>
+                            <p class="card-text"><strong>Місце:</strong> @eventItem.Location</p>
+                            <p class="card-text">@eventItem.Description</p>
+                        </div>
+                        <div class="card-footer d-flex justify-content-between">
+                            <button class="btn btn-warning btn-sm" @onclick="() => EditEvent(eventItem)">Редагувати</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+    }
+@code {
+    private List<Event> events = new();
+    private InputModel Input { get; set; } = new();
+    private bool showEditForm { get; set; } = false;
+    private bool showForm { get; set; } = false;
+    private bool showAddButton { get; set; } = true;
+    private int id;
+    private string UserID = string.Empty;
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user != null)
+        {
+            UserID = user.Id;
+           
+        }
+        await GetUserEvents(UserID);
+    }
+
+    private void ShowForm()
+    {
+        if (showEditForm == false)
+        {
+            showForm = !showForm;
+            showAddButton = !showAddButton;
+        }
+    }
+    private void CancelAdd(){
+        showForm = !showForm;
+        showAddButton = !showAddButton;
+    }
+    public async Task GetUserEvents(string organiserId)
+    {
+        events = await DbContext.Events
+            .Where(e => e.IDOrganiser == organiserId)
+            .ToListAsync();
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        var newEvent = new Event
+            {
+                Name = Input.Name,
+                Description = Input.Description,
+                Date = DateTime.Parse(Input.DateTimeq),
+                Location = Input.Location,
+                IDOrganiser = UserID,
+                EventPicture = Input.EventPicture
+            };
+
+        DbContext.Events.Add(newEvent);
+        await DbContext.SaveChangesAsync();
+        events.Add(newEvent);
+
+        Input = new InputModel();
+        NavigationManager.NavigateTo(NavigationManager.Uri, true);
+    }
+
+    private void EditEvent(Event ev)
+    {
+        showAddButton = false;
+        Input = new InputModel
+            {
+                Name = ev.Name,
+                Description = ev.Description,
+                Location = ev.Location,
+                DateTimeq = ev.Date.ToString("yyyy-MM-ddTHH:mm"),
+                EventPicture = ev.EventPicture
+            };
+        id = ev.Id;
+        showForm = true;
+        showEditForm = true;
+        StateHasChanged();
+    }
+
+    private async Task HandleEditSubmit()
+    {
+        var eventToEdit = await DbContext.Events.FindAsync(id);
+        if (eventToEdit != null)
+        {
+            eventToEdit.Name = Input.Name;
+            eventToEdit.Description = Input.Description;
+            eventToEdit.Location = Input.Location;
+            eventToEdit.Date = DateTime.Parse(Input.DateTimeq);
+            eventToEdit.EventPicture = Input.EventPicture;
+
+            await DbContext.SaveChangesAsync();
+
+            await GetUserEvents(UserID);
+        }
+        Input = new InputModel();
+        showEditForm = false;
+        showForm = false;
+    }
+
+    private void CancelEdit()
+    {
+        showEditForm = false;
+        showForm = false;
+        showAddButton = true;
+        Input = new InputModel();
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            using var stream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(stream);
+            Input.EventPicture = stream.ToArray();
+        }
+    }
+
+    public class InputModel
+    {
+        [Required]
+        [StringLength(100, MinimumLength = 3)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(1000)]
+        public string Description { get; set; } = string.Empty;
+
+        [Required]
+        public string DateTimeq { get; set; } = DateTime.Now.ToString("yyyy-MM-ddTHH:mm");
+
+        [Required]
+        [StringLength(200)]
+        public string Location { get; set; } = string.Empty;
+
+        public byte[]? EventPicture { get; set; }
+    }
+}

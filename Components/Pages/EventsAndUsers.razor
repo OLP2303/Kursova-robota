@@ -1,0 +1,165 @@
+﻿@page "/EventAndUser"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Authorization
+@using BlazorApp2.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@attribute [Authorize(Roles = "Organiser,Administrators")]
+<h3>Список учасників які підписались на Ваші події</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Назва події</th>
+            <th>Користувачі, що підписалися</th>
+            <th>Дії</th>
+            <th>Сповіщення</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var eventItem in eventsWithUsers)
+        {
+            <tr>
+                <td>@eventItem.Name</td>
+                <td>
+                    @if (eventItem.EventAndUsers.Any())
+                    {
+                        <ul>
+                            @foreach (var eu in eventItem.EventAndUsers)
+                            {
+                                <li>
+                                    @eu.User.User_name (@eu.User.Email)
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <span>Немає підписаних користувачів</span>
+                    }
+                </td>
+                <td>
+                    <ul style="list-style-type: none;">
+                        @foreach (var eu in eventItem.EventAndUsers)
+                        {
+                            <li>
+                                <button class="btn btn-danger btn-sm" @onclick="() => UnsubscribeUser(eu.UserId, eu.EventId)">
+                                    Відписати
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                </td>
+                <td >
+                    @if (eventItem.EventAndUsers.Any())
+                    {
+
+                        <button class="btn btn-warning btn-sm" @onclick="() => PrepareNotification(eventItem.Id)">
+                            Надіслати повідомлення
+                        </button>
+
+                        @*  @if (selectedEventId == eventItem.Id)
+                        {
+                            <EditForm Model="@input" OnValidSubmit="SendNotification">
+                                <InputText @bind-Value="input.Text" class="form-control" placeholder="Введіть текст сповіщення" />
+                                <button type="submit" class="btn btn-primary mt-2">Відправити</button>
+                            </EditForm>
+                        } *@
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+@if(AddNotification){
+    <EditForm Model="@input" OnValidSubmit="SendNotification">
+        <InputTextArea @bind-Value="input.Text" class="form-control" placeholder="Введіть текст сповіщення" />
+        <button type="submit" class="btn btn-primary mt-2">Відправити</button>
+        <button type="button" class="btn btn-secondary mt-2" @onclick="Cancel"> Скасувати</button>
+    </EditForm>
+}
+
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success mt-2">@successMessage</div>
+}
+
+@code {
+    private List<Event> eventsWithUsers = new();
+    private Notification input = new();
+    private string successMessage = string.Empty;
+    private string? UserId;
+    private bool AddNotification = false;
+    private int selectedEventId=0;
+    private string? TextNotif { get; set; } = string.Empty;
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user != null)
+        {
+            UserId = user.Id;
+        }
+        await LoadEventsWithUsers();
+    }
+    private async Task SendNotification()
+    {
+        if (string.IsNullOrWhiteSpace(input.Text))
+        {
+            Console.WriteLine("Текст сповіщення не може бути порожнім.");
+            return;
+        }
+
+        input.UserId = UserId!;
+        input.EventId = selectedEventId;
+        input.Date = DateTime.Now;
+
+        DbContext.Notifications.Add(input);
+        await DbContext.SaveChangesAsync();
+
+        successMessage = "Сповіщення успішно надіслано.";
+        selectedEventId = 0;
+        AddNotification = false;
+        await LoadEventsWithUsers(); 
+    }
+    private void PrepareNotification(int eventId)
+    {
+        AddNotification = !AddNotification;
+        selectedEventId = eventId; 
+        input = new Notification(); 
+    }
+    private void Cancel(){
+        AddNotification = false;
+        input = new Notification();
+    }
+    private async Task LoadEventsWithUsers()
+    {
+        eventsWithUsers = await DbContext.Events
+            .Where(e => e.IDOrganiser == UserId) // Фільтруємо за автором
+            .Include(e => e.EventAndUsers)
+                .ThenInclude(eu => eu.User)
+            .ToListAsync();
+    }
+    private async Task UnsubscribeUser(string userId, int eventId)
+    {
+       
+        var eventAndUser = await DbContext.EventsAndUsers
+            .FirstOrDefaultAsync(eu => eu.UserId == userId && eu.EventId == eventId);
+
+        if (eventAndUser != null)
+        {
+           
+            DbContext.EventsAndUsers.Remove(eventAndUser);
+            await DbContext.SaveChangesAsync();
+
+            successMessage = "Користувача успішно відписано від події!";
+            await LoadEventsWithUsers(); 
+            StateHasChanged(); 
+        }
+    }
+}

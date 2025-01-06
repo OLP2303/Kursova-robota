@@ -1,0 +1,469 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using BlazorApp2.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Home</PageTitle>
+
+<div class="mainCont">
+    <div class="main">
+        <div class="link">
+            <div class="navbar-brand ms-3">
+                @if (User?.User_name != null)
+                {
+                    <h3>З поверненням,@User.User_name!</h3>
+                }
+            </div>
+            <div class="link_search">
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="formConteiner"><InputText @bind-Value="name" class="form-controll" placeholder="Пошук за назвою" /> <button class="delete" @onclick="delete">x</button></div>
+                        <button class="btn-primarySearch" @onclick="Search">Search</button>
+                        <div>
+                            <button class="avatar" @onclick="()=> showNotific=!showNotific"></button>
+                        </div>
+                        @if (showNotific)
+                        {
+                            <div class="notification-overlay">
+                                <div class="notification">
+                                    <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+                                        <h4> @((showNewNotif) ? "Нові сповіщення" : "Всі сповіщення")</h4>
+                                        <button class="btn-primarySearch" @onclick="()=> showNotific=!showNotific"> Закрити </button>
+                                    </div>
+
+                                    <div class="notification-buttons">
+                                        <button class="btn btn-primary" @onclick="()=> showNewNotif=!showNewNotif"> @((showNewNotif) ? "Всі сповіщення" : "Нові сповіщення")</button>
+                                    </div>
+
+                                    @if (showNewNotif)
+                                    {
+                                        <div class="notification-items">
+                                            @foreach (var notif in ((showNewNotif) ? NotificationsResent : Notifications))
+                                            {
+                                                <div class="notification-item">
+                                                    <p><strong>Надіслано:</strong> @notif.Date.ToString("dd.MM.yyyy HH:mm")</p>
+                                                    <p><strong>Подія:</strong> @(notif.Event?.Name ?? "Подія не вказана")</p>
+                                                    <p><strong>Відправник(організатор):</strong> @(notif.User?.User_name ?? "Користувач не вказаний")</p>
+                                                    <p><strong>Текст:</strong> @notif.Text</p>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (!showNewNotif)
+                                    {
+                                        <div class="notification-items">
+                                            @foreach (var notif in Notifications)
+                                            {
+                                                <div class="notification-item">
+                                                    <p><strong>Надіслано:</strong> @notif.Date.ToString("dd.MM.yyyy HH:mm")</p>
+                                                    <p><strong>Подія:</strong> @(notif.Event?.Name ?? "Подія не вказана")</p>
+                                                    <p><strong>Відправник(організатор):</strong> @(notif.User?.User_name ?? "Користувач не вказаний")</p>
+                                                    <p><strong>Текст:</strong> @notif.Text</p>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="nav-item px-3">
+                            <form action="Account/Logout" method="post">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="ReturnUrl" value="@currentUrl" />
+                                <button type="submit" class="nav-linkq">
+                                    Вихід
+                                </button>
+                            </form>
+                        </div>
+                        <div class="rounded-circle" style="width:40px;height:40px;">
+                            @if (User?.UserPicture != null)
+                            {
+                                <img src="@($"data:image/jpeg;base64,{Convert.ToBase64String(User.UserPicture)}")" alt="User Picture" class="img-fluid rounded-circle" />
+                            }
+                        </div>
+                    </Authorized>
+                    <NotAuthorized>
+                        <div class="formConteiner"><InputText @bind-Value="name" class="form-controll" placeholder="Пошук за назвою" /> <button class="delete" @onclick="delete">x</button></div>
+                        <button class="btn-primarySearch" @onclick="Search">Search</button>
+                        <NavLink class="nav-link" href="Account/Login">
+                            <button class="nav-linkq">Вхід</button>
+                        </NavLink>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </div>
+        <div style="justify-items:center;"><h3>Доступні події</h3> </div>
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">
+                @successMessage
+            </div>
+
+        }
+        <div class="row row-cols-1 row-cols-md-3 g-4 mt-4">
+            @foreach (var eventItem in filteredEvents)
+            {
+                <div class="col">
+                    <div class="card h-100 shadow-sm">
+                        @if (eventItem.EventPicture != null)
+                        {
+                            <img src="data:image/jpeg;base64,@Convert.ToBase64String(eventItem.EventPicture)" alt="Фото події" style="width: 100%; height: 200px; object-fit: cover" />
+                        }
+                        else
+                        {
+                            <p><em>Зображення відсутнє</em></p>
+                        }
+                        <div class="card-body">
+                            <h5 class="card-title">@eventItem.Name</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">@eventItem.Date.ToString("f")</h6>
+                            <p class="card-text"><strong>Місце:</strong> @eventItem.Location</p>
+
+                            @if (showFullDescription.ContainsKey(eventItem.Id) && showFullDescription[eventItem.Id])
+                            {
+                                <p class="card-text">@eventItem.Description</p>
+                            }
+                            else
+                            {
+                                <p class="card-text @((eventItem.Description.Length > 100) ? "text-truncated" : "")">
+                                    @eventItem.Description
+                                </p>
+                            }
+
+                            @if (eventItem.Description.Length > 100 && !(showFullDescription.ContainsKey(eventItem.Id) && showFullDescription[eventItem.Id]))
+                            {
+                                <button class="btn btn-link btn-sm" @onclick="() => ShowFullDescription(eventItem.Id)">Показати більше</button>
+                            }
+                        </div>
+                        <div class="card-footer d-flex justify-content-between">
+                            @if (eventItem.Date > DateTime.Now)
+                            {
+                                @if (IsSubscribed[eventItem.Id])
+                                {
+                                    <button class="btn btn-danger btn-sm" @onclick="() => UnSubscribeToEvent(eventItem.Id)">Скасувати реєстрацію</button>
+                                   
+                                }
+                                else
+                                {
+                                    <button class="btn btn-warning btn-sm" @onclick="() => SubscribeToEvent(eventItem.Id)">Зареєструватись</button>
+                                   
+                                }
+                            }
+                            else
+                            {
+                                <button class="btn btn-warning btn-sm" @onclick="() => GetCom(eventItem.Id)">Коментарі</button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+    @if (showReviewForm){
+        <div class="review-form">
+            <h3>Відгуки</h3>
+            <ul>
+                @foreach (var review in Comments)
+                {
+                    <li> @review.User.User_name- @string.Concat(Enumerable.Repeat("⭐️", review.Rating))<br />@review.CommentText
+                        @if (IsAdminOrOrganiser)
+                        {
+                            <button class="btn btn-danger btn-sm" @onclick="() => DeleteReview(review.Id)">Видалити</button>
+                        }
+                    </li>
+                }
+
+            </ul>
+            <div class="add-comment-section">
+                <h3>Залиште свій відгук</h3>
+                <p class="comment-description">
+                    Поділіться своїми враженнями про цю подію.
+                    Дотримуйтесь правил спільноти, щоб ваш коментар залишився доступним.
+                </p>
+                <EditForm Model="@newComment" OnValidSubmit="AddComment" class="add-comment-form">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <div class="form-group">
+                        <div @onclick="()=> showRules=!showRules" style="cursor: pointer;">Правила спільноти</div>
+                        @if (showRules)
+                        {
+                            <div class="community-rules" style="margin-top: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                                <ul style="list-style-type: disc; padding-left: 20px; font-size: 14px;">
+                                    <li>Будьте ввічливими та не використовуйте ненормативну лексику.</li>
+                                    <li>Уникайте образ інших учасників та будь-якої дискримінації.</li>
+                                    <li>Не піднімайте політичні чи релігійні теми.</li>
+                                    <li>Не поширюйте спам чи рекламний контент.</li>
+                                    <li>Не публікуйте матеріали, які порушують авторські права.</li>
+                                    <li>Ваші коментарі мають бути конструктивними та пов’язаними з подією.</li>
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                    <div class="form-group">
+                        <label for="commentText">Коментар:</label>
+                        <InputText id="commentText" class="form-control" @bind-Value="newComment.CommentText" />
+                    </div>
+                    <div class="form-group">
+                        <label for="rating">Ваша оцінка:</label>
+                        <div class="star" style="display:flex;flex-direction:row;">
+                            <div @onclick="()=>newComment.Rating=1" style="cursor: pointer; font-size: 20px;">⭐️</div>
+                            <div @onclick="()=>newComment.Rating=2" style="cursor: pointer; font-size: 20px;">⭐️</div>
+                            <div @onclick="()=>newComment.Rating=3" style="cursor: pointer; font-size: 20px;">⭐️</div>
+                            <div @onclick="()=>newComment.Rating=4" style="cursor: pointer; font-size: 20px;">⭐️</div>
+                            <div @onclick="()=>newComment.Rating=5" style="cursor: pointer; font-size: 20px;">⭐️</div>
+
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Додати</button>
+                    <button class="btn btn-secondary" @onclick="HideReviewForm">Закрити</button>
+
+                </EditForm>
+            </div>
+        </div>
+    }   
+</div>
+@code {
+    private List<Event> Event = new();
+    private List<Event> filteredEvents = new();
+    private List<Notification> Notifications = new();
+    private List<Notification> NotificationsResent = new();
+    private List<Comment> Comments = new();
+    private string? successMessage;
+    private string? currentUrl;
+    private bool IsAdminOrOrganiser = false;
+    private string UserID =string.Empty;
+    private string? UserName;
+    private bool showReviewForm = false;
+    private bool showRules = false;
+    private bool showNotific = false;
+    private bool showNewNotif = true;
+    private int currentEventId;
+    private string? name;
+    private DateTime _lastCheckedTime =DateTime.Today;
+    private ApplicationUser? User ; 
+    private Comment newComment = new Comment();
+    private Dictionary<int, bool> IsSubscribed = new Dictionary<int, bool>();
+    private Dictionary<int, bool> showFullDescription = new Dictionary<int, bool>();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        User = await UserManager.GetUserAsync(authState.User);
+        IsAdminOrOrganiser = user.IsInRole("Administrators");
+        if (User != null)
+        {
+            UserID = User.Id;
+            UserName = User.User_name;
+        }
+        Event = await DbContext.Events.ToListAsync();
+        filteredEvents = Event;
+        await GetUserNotification();
+        await GetUserNotificationNew();
+        foreach (var eventItem in Event)
+        {
+            IsSubscribed[eventItem.Id] = await IsSubAsync(eventItem.Id);
+        }
+    }
+
+    private async Task GetUserNotificationNew(){
+        var eventIds = await DbContext.EventsAndUsers
+          .Where(eu => eu.UserId == UserID)
+          .Select(eu => eu.EventId)
+          .ToListAsync();
+        var date = DateTime.Now.AddMinutes(-30);
+
+        var userNotifications = await DbContext.Notifications
+       .Include(n => n.Event)
+       .Include(n => n.User)
+       .Where(n => eventIds.Contains(n.EventId) && n.Date > date)
+       .OrderByDescending(n => n.Date)
+       .ToListAsync();
+        NotificationsResent = userNotifications;
+    }
+    private async Task GetUserNotification()
+    {
+        var eventIds = await DbContext.EventsAndUsers
+          .Where(eu => eu.UserId == UserID)
+          .Select(eu => eu.EventId)
+          .ToListAsync();
+
+        var userNotifications = await DbContext.Notifications
+       .Include(n => n.Event)
+       .Include(n => n.User)
+       .Where(n => eventIds.Contains(n.EventId))
+       .OrderByDescending(n => n.Date)
+       .ToListAsync();
+        Notifications = userNotifications;
+    }
+    private void Search()
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            filteredEvents = Event;
+        }
+        else
+        {
+            filteredEvents = Event
+                .Where(ev => ev.Name?.Contains(name, StringComparison.OrdinalIgnoreCase) == true)
+                .ToList(); 
+        }
+    }
+
+    private void delete()
+    {
+        if (name != null)
+        {
+            name = null;
+            filteredEvents = Event;
+        }
+    }
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+    private async Task SubscribeToEvent(int eventId)
+    {
+        if (!string.IsNullOrEmpty(UserID))
+        {
+            // Перевірка, чи існує UserID
+            var userExists = await DbContext.Users.AnyAsync(u => u.Id == UserID);
+            if (!userExists)
+            {
+                successMessage = "Користувача з таким ID не існує.";
+                return;
+            }
+
+            if (!await IsSubAsync(eventId))
+            {
+                var eventAndUser = new EventAndUser
+                    {
+                        UserId = UserID,
+                        EventId = eventId
+                    };
+
+                DbContext.EventsAndUsers.Add(eventAndUser);
+                await DbContext.SaveChangesAsync();
+
+                successMessage = "Ви успішно підписалися на подію!";
+                IsSubscribed[eventId] = true;
+            }
+            else
+            {
+                successMessage = "Ви вже підписані на цю подію.";
+            }
+        }
+        else
+        {
+            successMessage = "Будь ласка, увійдіть в обліковий запис для підписки.";
+        }
+
+        StateHasChanged();
+    }
+    private async Task UnSubscribeToEvent(int eventId){
+        if (!string.IsNullOrEmpty(UserID)){
+            var eventAndUser = await DbContext.EventsAndUsers.FirstOrDefaultAsync(eu => eu.UserId == UserID && eu.EventId == eventId);
+            if (eventAndUser!=null)
+            {
+                DbContext.EventsAndUsers.Remove(eventAndUser);
+                IsSubscribed[eventId] = false;
+                await DbContext.SaveChangesAsync();
+                successMessage = "Ви успішно відписалися від події!";
+
+            }
+            else{
+                successMessage = "Ви вже відписані від події.";
+            }
+
+        }
+        else
+        {
+            successMessage = "Будь ласка, увійдіть в обліковий запис для підписки.";
+        }
+        StateHasChanged();
+    }
+    private async Task<bool> IsSubAsync(int eventId)
+    {
+        if (UserID != null)
+        {
+            return await DbContext.EventsAndUsers
+                .AnyAsync(eu => eu.UserId == UserID && eu.EventId == eventId);
+        }
+        return false;
+    }
+    private void ShowFullDescription(int eventId)
+    {
+        if (showFullDescription.ContainsKey(eventId))
+        {
+            // Якщо вже є значення для цієї події, змінюємо його на протилежне
+            showFullDescription[eventId] = !showFullDescription[eventId];
+        }
+        else
+        {
+            // Якщо немає, додаємо і ставимо в true, щоб показати весь текст
+            showFullDescription.Add(eventId, true);
+        }
+
+        StateHasChanged(); // Оновлює UI після зміни стану
+    }
+    private async Task DeleteReview(int EventId){
+        var delComment = DbContext.Comments.FirstOrDefault(u => u.Id == EventId);
+        if (delComment != null)
+        {
+            DbContext.Comments.Remove(delComment);
+            await DbContext.SaveChangesAsync();
+            Comments.Remove(delComment);
+        }
+    }
+    private async Task GetCom(int eventId)
+    {
+        if (!string.IsNullOrEmpty(UserID))
+        {
+            showReviewForm = true;
+            currentEventId = eventId;
+            await GetComments(eventId);
+        }
+        else
+        {
+            successMessage = "Будь ласка, увійдіть в обліковий запис для коментування.";
+        }
+    }
+
+    private async Task AddComment(){
+
+        newComment.UserId = UserID;
+        newComment.EventId = currentEventId;
+        DbContext.Comments.Add(newComment);
+        await DbContext.SaveChangesAsync();
+        await GetComments(currentEventId);
+        newComment = new Comment();
+
+    }
+    private async Task GetComments(int eventId){
+        Comments = await DbContext.Comments
+        .Where(c => c.EventId == eventId)
+        .Include(c => c.User)  // Включення користувача для кожного коментаря
+        .ToListAsync();
+        showReviewForm = true;
+    }
+    private void HideReviewForm()
+    {
+        showReviewForm = false;
+        Comments = new List<Comment>();
+    }
+    private void HideNotification(){
+        showNotific = false;
+    }
+    
+}

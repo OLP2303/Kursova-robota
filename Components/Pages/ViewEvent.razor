@@ -1,0 +1,234 @@
+﻿@page "/viewevent"
+@rendermode InteractiveServer
+@using BlazorApp2.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IJSRuntime JsRuntime
+@attribute [Authorize(Roles = "Administrators")]
+<link href="css/styleEvent.css" rel="stylesheet" />
+<h3>Список подій</h3>
+<button class="custom-button" @onclick="ShowForm">
+    <span>Додати подію</span>
+    <i class="plus-icon">+</i>
+</button>
+@if (showForm)
+{
+    <h4>@(showEditForm ? "Редагувати подію" : "Додати нову подію"
+                                                        )</h4>
+    <EditForm Model="Input" FormName="EventForm" OnValidSubmit="@(showEditForm ? HandleEditSubmit : HandleValidSubmit)">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" role="alert" />
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.Name" class="form-control" aria-required="true" placeholder="Назва події" />
+            <label for="name">Назва</label>
+            <ValidationMessage For="() => Input.Name" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.Location" class="form-control" aria-required="true" placeholder="Місце проведення" />
+            <label for="location">Місце проведення</label>
+            <ValidationMessage For="() => Input.Location" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.DateTimeq" class="form-control" type="datetime-local" aria-required="true" />
+            <label for="datetime">Дата та час події</label>
+            <ValidationMessage For="() => Input.DateTimeq" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.Description" class="form-control" aria-required="true" placeholder="Опис події" />
+            <label for="description">Опис</label>
+            <ValidationMessage For="() => Input.Description" class="text-danger" />
+        </div>
+        <div class="inpdiv">
+            <label for="file-upload" class="form-label">Завантажити зображення події</label>
+            <InputFile id="file-upload" OnChange="HandleFileUpload" class="custom-file-input" />
+            <ValidationMessage For="() => Input.EventPicture" class="text-danger" />
+        </div>
+        <button type="submit" class="w-40 btn btn-lg btn-primary">@((showEditForm) ? "Зберегти зміни" : "Додати подію")</button>
+        @if (showEditForm)
+        {
+            <button type="button" class=" w-30 btn btn-secondary" @onclick="CancelEdit">Скасувати</button>
+        }
+    </EditForm>
+}
+<div class="row row-cols-1 row-cols-md-3 g-4 mt-4">
+    @foreach (var eventItem in filteredEvents)
+    {
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                @if (eventItem.EventPicture != null)
+                {
+                    <img src="data:image/jpeg;base64,@Convert.ToBase64String(eventItem.EventPicture)" alt="Фото події" style="width: 100%; height: 200px; object-fit: cover" />
+                }
+                else
+                {
+                    <p><em>Зображення відсутнє</em></p>
+                }
+                <div class="card-body">
+                    <h5 class="card-title">@eventItem.Name</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">@eventItem.Date.ToString("f")</h6>
+                    <p class="card-text"><strong>Місце:</strong> @eventItem.Location</p>
+                    <p class="card-text">@eventItem.Description</p>
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <button class="btn btn-warning btn-sm" @onclick="() => EditEvent(eventItem)">Редагувати</button>
+                    <button class="btn btn-danger btn-sm" @onclick="() => DeleteEvent(eventItem.Id)">Видалити</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+@code {
+    private List<Event> events { get; set; } = new();
+    private List<Event> filteredEvents = new();
+    private InputModel Input { get; set; } = new();
+    private bool showEditForm { get; set; } = false;
+    private bool showForm { get; set; } = false;
+    private int id;
+    private string UserId = string.Empty;
+
+    // Завантаження існуючих подій з бази даних
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user != null)
+        {
+            UserId = user.Id;
+        }
+        events = await DbContext.Events.ToListAsync();
+        filteredEvents = events;
+    }
+    private void ShowForm() {
+        if (!showForm){
+            showForm = true;
+        }else{ showForm = false; }
+    }
+    // Метод для обробки відправки форми додавання події
+    private async Task HandleValidSubmit()
+    {
+        var newEvent = new Event
+            {
+                Name = Input.Name,
+                Description = Input.Description,
+                Date = DateTime.Parse(Input.DateTimeq),
+                Location = Input.Location,
+                EventPicture = Input.EventPicture
+            };
+
+        DbContext.Events.Add(newEvent);
+        await DbContext.SaveChangesAsync();
+        events.Add(newEvent);
+
+        Input = new InputModel();
+        NavigationManager.NavigateTo(NavigationManager.Uri, true);
+    }
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            using var stream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(stream);
+            Input.EventPicture = stream.ToArray();
+        }
+    }
+    // Метод для ініціалізації редагування
+    private void EditEvent(Event ev)
+    {
+        Input = new InputModel
+            {
+                Name = ev.Name,
+                Description = ev.Description,
+                Location = ev.Location,
+                DateTimeq = ev.Date.ToString("yyyy-MM-ddTHH:mm"),
+                EventPicture = ev.EventPicture
+            };
+        id = ev.Id;
+        showForm = true;
+        showEditForm = true; // Відображаємо форму редагування
+        StateHasChanged();
+    }
+
+    // Метод для збереження змін події
+    private async Task HandleEditSubmit()
+    {
+        var eventToEdit = await DbContext.Events.FindAsync(id);
+        if (eventToEdit != null)
+        {
+            eventToEdit.Name = Input.Name;
+            eventToEdit.Description = Input.Description;
+            eventToEdit.Location = Input.Location;
+            eventToEdit.Date = DateTime.Parse(Input.DateTimeq);
+            eventToEdit.EventPicture = Input.EventPicture;
+
+            await DbContext.SaveChangesAsync();
+            events = await DbContext.Events.ToListAsync();
+        }
+        Input = new InputModel();
+        showEditForm = false; // Ховаємо форму редагування
+    }
+
+    // Метод для скасування редагування
+    private void CancelEdit()
+    {
+        showEditForm = false;
+        showForm = false;
+        Input = new InputModel(); // Скидаємо форму
+    }
+
+    // Метод для видалення події
+    private async Task DeleteEvent(int id)
+    {
+        var eventToDelete = await DbContext.Events.FindAsync(id);
+        bool isConfirmed = await JsRuntime.InvokeAsync<bool>("confirm", "Ви впевнені що хочете видалити цю подію?");
+        if (isConfirmed)
+        {
+            if (eventToDelete != null)
+            {
+                DbContext.Events.Remove(eventToDelete);
+                await DbContext.SaveChangesAsync();
+            }
+            events.RemoveAll(e => e.Id == id);
+            StateHasChanged();
+        }
+        
+
+    }
+    public async Task SubscribeToEvent(string userId, int eventId)
+    {
+        var eventAndUser = new EventAndUser
+            {
+                UserId = userId,
+                EventId = eventId
+            };
+
+        DbContext.EventsAndUsers.Add(eventAndUser);
+        await DbContext.SaveChangesAsync();
+    }
+
+    public class InputModel
+    {
+        [Required]
+        [StringLength(100, ErrorMessage = "Назва повинна бути від {2} до {1} символів.", MinimumLength = 3)]
+        public string Name { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(1000, ErrorMessage = "Опис не може бути більше {1} символів.")]
+        public string Description { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Дата та час події є обов'язковими.")]
+        [DataType(DataType.DateTime)]
+        public string DateTimeq { get; set; } = DateTime.Now.ToString("yyyy-MM-ddTHH:mm");
+
+        [Required]
+        [StringLength(200, ErrorMessage = "Місце проведення не може бути більше {1} символів.")]
+        public string Location { get; set; } = string.Empty;
+        public byte[]? EventPicture { get; set; }
+    }
+}

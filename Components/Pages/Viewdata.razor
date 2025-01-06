@@ -1,0 +1,311 @@
+﻿@page "/viewdata"
+@using Microsoft.AspNetCore.Authorization
+@rendermode InteractiveServer
+@using BlazorApp2.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using System.ComponentModel.DataAnnotations
+@using BlazorApp2.Components;
+@attribute [Authorize(Roles = "Administrators")]
+@inject ApplicationDbContext DbContext
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject ILogger<Viewdata> Logger
+@inject RoleManager<IdentityRole> _RoleManager
+@inject IJSRuntime JsRuntime
+<link href="css/ViewUserStyle.css" rel="stylesheet" />
+
+<div class="conteiner">
+    <h3>Список всіх користувачів</h3>
+    <button class="custom-button" @onclick="ShowAdd">
+        <span>Додати</span>
+        <i class="plus-icon">+</i>
+    </button>
+</div>
+@if (showAddMenu)
+{
+    <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+        <DataAnnotationsValidator />
+        <hr />
+        <ValidationSummary class="text-danger" role="alert" />
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.UserName" class="form-control" autocomplete="name" aria-required="true" placeholder="Full Name" />
+            <label for="username">Name</label>
+            <ValidationMessage For="() => Input.UserName" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+            <label for="email">Email</label>
+            <ValidationMessage For="() => Input.Email" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputDate @bind-Value="Input.Birth_date" class="form-control" autocomplete="Birth_date" aria-required="true" placeholder="YYYY-MM-DD" />
+            <label for="Birth_date">Birth_date</label>
+            <ValidationMessage For="() => Input.Birth_date" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+            <label for="password">Password</label>
+            <ValidationMessage For="() => Input.Password" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+            <label for="confirm-password">Confirm Password</label>
+            <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+        </div>
+        <button type="submit" class="buttonAdd">Додати</button>
+        <button type="button" class="buttonCancel" @onclick="CancelEdit">Скасувати</button>
+    </EditForm> 
+}
+<table class="table">
+    <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Ім'я</th>
+            <th>Email</th>
+            <th>Дата народження</th>
+            <th>Системне ім'я</th>
+            <th>Статус</th>
+            <th>Дії</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in users)
+        {
+            <tr>
+                <td>@user.Id</td>
+                <td>@user.User_name</td>
+                <td>@user.Email</td>
+                <td>@user.Birth_date.ToString("yyyy-MM-dd")</td>
+                <td>@user.UserName</td>
+                <td>
+                    @if (lockedUsers.Any(u => u.Id == user.Id))
+                    {
+                        <span class="text-danger">Заблоковано</span>
+                    }
+                    else
+                    {
+                        <span class="text-success">Активний</span>
+                    }
+
+                </td>
+                <td>
+                    <div class="buttOns">
+                        <button class="btn btn-outline-danger btn-sm" @onclick="()=>Block(user)">Заблокувати</button>
+                        <button class="btn btn-outline-primary btn-sm" @onclick="()=>UnBlock(user)">Розблокувати</button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="()=>ChangePass(user)">Змінити пароль</button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="()=>DeleteUser(user)">Видалити</button>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@if (!string.IsNullOrEmpty(message))
+{
+    <div class="alert alert-success mt-2">@message</div>
+}
+@if (ChangePassMenu)
+{
+    <EditForm Model="InputPass" FormName="change-password" OnValidSubmit="OnValidSubmitAsync" method="post">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" role="alert" />
+        <div class="form-floating mb-3">
+            <InputText type="password" @bind-Value="InputPass.NewPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Please enter your new password." />
+            <label for="new-password" class="form-label">Новий пароль</label>
+            <ValidationMessage For="() => InputPass.NewPassword" class="text-danger" />
+        </div>
+        <div class="form-floating mb-3">
+            <InputText type="password" @bind-Value="InputPass.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="Please confirm your new password." />
+            <label for="confirm-password" class="form-label">Підтвердьте пароль</label>
+            <ValidationMessage For="() => InputPass.ConfirmPassword" class="text-danger" />
+        </div>
+        <button type="submit" class="w-100 btn btn-lg btn-primary">Змінити пароль</button>
+    </EditForm>
+}
+@code {
+    private List<ApplicationUser> users = new();
+    private List<ApplicationUser> lockedUsers = new();
+    string User_ROLE = "User";
+    private ApplicationUser? CurUser;
+    private string? message;
+    private bool showAddMenu { get; set; } = false;
+    private bool ChangePassMenu { get; set; } = false;
+    private void ShowAdd() => showAddMenu = !showAddMenu;
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+    [SupplyParameterFromForm]
+    private InputModelPass InputPass { get; set; } = new();
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        users = await DbContext.Users.ToListAsync(); 
+        foreach(var useR in users){
+            if (await UserManager.IsLockedOutAsync(useR))
+            {
+                lockedUsers.Add(useR);
+            }
+        }
+    }
+    private async Task DeleteUser(ApplicationUser user){
+        bool isConfirmed = await JsRuntime.InvokeAsync<bool>("confirm", "Ви впевнені що хочете видалити цього користувача?");
+        if (isConfirmed)
+        {
+            var currentRoles = await UserManager.GetRolesAsync(user);
+            if (currentRoles.Any())
+            {
+                await UserManager.RemoveFromRolesAsync(user, currentRoles);
+            }
+            await UserManager.DeleteAsync(user);
+            users.Remove(user);
+            StateHasChanged();
+        }
+
+    }
+    private async Task Block(ApplicationUser user)
+    {
+        await UserManager.SetLockoutEnabledAsync(user,true);
+        await UserManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue);
+        lockedUsers.Add(user);
+        StateHasChanged();
+    }
+    private async Task UnBlock(ApplicationUser user)
+    { 
+        await UserManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow);
+        await UserManager.SetLockoutEnabledAsync(user, false);
+        lockedUsers.Remove(user);
+        StateHasChanged();
+    }
+    private void ChangePass(ApplicationUser user)
+    { 
+        CurUser =user;
+        ChangePassMenu = true;
+    }
+    private async Task OnValidSubmitAsync()
+    {
+        if (CurUser != null)
+        {
+            var removeResult = await UserManager.RemovePasswordAsync(CurUser);
+            if (!removeResult.Succeeded)
+            {
+                message = $"Помилка видалення старого пароля: {string.Join(", ", removeResult.Errors.Select(e => e.Description))}";
+                return;
+            }
+
+            var addResult = await UserManager.AddPasswordAsync(CurUser, InputPass.NewPassword);
+            if (!addResult.Succeeded)
+            {
+                message = $"Помилка встановлення нового пароля: {string.Join(", ", addResult.Errors.Select(e => e.Description))}";
+                return;
+            }
+     
+        }
+        message = $"Пароль користувача успішно змінено.";
+        ChangePassMenu = false;
+    }
+    public async Task RegisterUser(EditContext editContext)
+    {
+        try
+        {
+
+            var user = CreateUser();
+
+            // Встановлюємо ім'я користувача
+            user.User_name = Input.UserName;
+            user.Birth_date = Input.Birth_date;
+
+            await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+            var emailStore = GetEmailStore();
+            await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+
+
+            var result = await UserManager.CreateAsync(user, Input.Password);
+            await UserManager.AddToRoleAsync(user, User_ROLE);
+            users = await DbContext.Users.ToListAsync();
+
+            showAddMenu = false;
+            StateHasChanged();  
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("An error occurred during user registration: {Message}", ex.Message);
+        }
+    }
+
+    private ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+    private void CancelEdit()
+    {
+        showAddMenu = false;
+        Input = new InputModel();
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [Display(Name = "Name")]
+        public string UserName { get; set; } = "";
+
+        [Required]
+        [EmailAddress]
+        [Display(Name = "Email")]
+        public string Email { get; set; } = "";
+
+        [Required]
+        [Display(Name = "Birth Date")]
+        [DataType(DataType.Date)]
+        public DateTime Birth_date { get; set; } = DateTime.Today;
+
+        [Required]
+        [StringLength(100, ErrorMessage = "{0} повинен бути довжиною не менше {2} і не більше {1} символів.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        [Compare("Password", ErrorMessage = "Пароль та підтверджений пароль не збігаються.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+    private sealed class InputModelPass
+    {
+
+        [Required]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "New password")]
+        public string NewPassword { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm new password")]
+        [Compare("NewPassword", ErrorMessage = "The new password and confirmation password do not match.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}
+
+

@@ -1,0 +1,115 @@
+﻿@page "/Account/Manage"
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using BlazorApp2.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityUserAccessor UserAccessor
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>Profile</PageTitle>
+
+<h3>Персональні дані</h3>
+<StatusMessage />
+<div class="d-flex justify-content-between align-items-start gap-4">
+    <!-- Ліва колонка: інформація користувача -->
+    <div class="row flex-grow-1">
+        <div class="col-md-10">
+            <div class="form-group">
+                <!-- Ім'я користувача -->
+                <label for="userName" class="form-label">Ім'я користувача</label>
+                <div class="form-control bg-light" id="userName">@userName</div>
+            </div>
+
+            <div class="form-group mt-3">
+                <!-- Дата народження -->
+                <label for="birthDate" class="form-label">Дата народження</label>
+                <div class="form-control bg-light" id="birthDate">
+                    @Birth_date?.ToString("d", System.Globalization.CultureInfo.GetCultureInfo("uk-UA"))
+                </div>
+            </div>
+
+            <div class="form-group mt-3">
+                <!-- Email -->
+                <label for="userEmail" class="form-label">Email</label>
+                <div class="form-control bg-light" id="userEmail">@usereMail</div>
+            </div>
+
+            <div class="form-group mt-3">
+                <!-- Телефон -->
+                <label for="phoneNumber" class="form-label">Номер телефону</label>
+                <div class="form-control bg-light" id="phoneNumber">@phoneNumber</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Права колонка: фото профілю -->
+    <div class="text-center">
+        <h5>Фото профілю</h5>
+        @if (user?.UserPicture != null)
+        {
+            <img src="@($"data:image/jpeg;base64,{Convert.ToBase64String(user.UserPicture)}")"
+                 alt="User Picture"
+                 class="rounded-circle shadow"
+                 style="width: 200px; height: 200px; border: 3px solid #343a40;" />
+        }
+        else
+        {
+            <div class="d-flex justify-content-center align-items-center bg-light rounded-circle shadow"
+                 style="width: 150px; height: 150px;">
+                <p class="text-muted">Нема фото</p>
+            </div>
+        }
+    </div>
+</div>
+@code {
+    private ApplicationUser user = default!;
+    private string? usereMail;
+    private string? userName;
+    private DateTime? Birth_date;
+    private string? phoneNumber;
+    // private byte[]? UserPicture;
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // [SupplyParameterFromForm]
+    // private InputModel Input { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        user = await UserAccessor.GetRequiredUserAsync(HttpContext);
+        userName = user.User_name;
+        Birth_date = user.Birth_date;
+        usereMail = user.Email;
+        phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+        // usereMail = await UserManager.GetUserNameAsync(user);
+        // phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+
+        // Input.PhoneNumber ??= phoneNumber;
+    }
+    // private async Task OnValidSubmitAsync()
+    // {
+       
+    //     if (Input.PhoneNumber != phoneNumber)
+    //     {
+    //         var setPhoneResult = await UserManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
+    //         if (!setPhoneResult.Succeeded)
+    //         {
+    //             RedirectManager.RedirectToCurrentPageWithStatus("Error: Failed to set phone number.", HttpContext);
+    //         }
+    //     }
+        
+    //     await SignInManager.RefreshSignInAsync(user);
+    //     RedirectManager.RedirectToCurrentPageWithStatus("Your profile has been updated", HttpContext);
+    // }
+
+    // private sealed class InputModel
+    // {
+    //     [Phone]
+    //     [Display(Name = "Phone number")]
+    //     public string? PhoneNumber { get; set; }
+
+      
+    // }
+}

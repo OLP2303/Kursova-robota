@@ -1,0 +1,156 @@
+﻿@page "/Account/Register"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using BlazorApp2.Data
+@using System.Text.Encodings.Web  
+@using Microsoft.AspNetCore.WebUtilities 
+@using System.Text
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IUserStore<ApplicationUser> UserStore
+@inject SignInManager<ApplicationUser> SignInManager
+@inject ILogger<Register> Logger
+@inject IEmailSender<ApplicationUser> EmailSender
+@inject NavigationManager NavigationManager
+@inject IdentityRedirectManager RedirectManager
+@inject RoleManager<IdentityRole> _RoleManager
+<div class="sectionq">
+    <div class="conteiner_reg">
+        <StatusMessage Message="@Message" /> 
+        <div class="rew">
+            <EditForm Model="Input" asp-route-returnUrl="@ReturnUrl" method="post" OnValidSubmit="RegisterUser" FormName="register">
+                <DataAnnotationsValidator />
+                <h2>Створити новий акаунт.</h2>
+                <hr />
+                <ValidationSummary class="text-danger" role="alert" />
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.UserName" class="form-control" autocomplete="name" aria-required="true" placeholder="Full Name" />
+                    <label for="username">Ім'я</label>
+                    <ValidationMessage For="() => Input.UserName" class="text-danger" />
+                </div>
+                <div class="form-floating mb-3">
+                    <InputText @bind-Value="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                    <label for="email">Email</label>
+                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+                </div>
+                <div class="form-floating mb-3">
+                    <InputDate @bind-Value="Input.Birth_date" class="form-control" autocomplete="Birth_date" aria-required="true" placeholder="YYYY-MM-DD" />
+                    <label for="Birth_date">Ваша дата народження</label>
+                    <ValidationMessage For="() => Input.Birth_date" class="text-danger" />
+                </div>
+                <div class="form-floating mb-3">
+                    <InputText type="password" @bind-Value="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                    <label for="password">Створіть пароль</label>
+                    <ValidationMessage For="() => Input.Password" class="text-danger" />
+                </div>
+                <div class="form-floating mb-3">
+                    <InputText type="password" @bind-Value="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                    <label for="confirm-password">Підтвердьте створений пароль</label>
+                    <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+                </div>
+                <button type="submit" class="w-100 btn btn-lg btn-primary">Створити акаунт</button>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IEnumerable<IdentityError>? identityErrors;
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private string? Message => identityErrors is null ? null : $"Error: {string.Join(", ", identityErrors.Select(error => error.Description))}";
+
+    public async Task RegisterUser(EditContext editContext)
+    {
+        var user = CreateUser();
+        user.User_name = Input.UserName;
+        user.Birth_date = Input.Birth_date;
+
+        await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
+        var emailStore = GetEmailStore();
+        await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+
+        var result = await UserManager.CreateAsync(user, Input.Password);
+        if (!result.Succeeded)
+        {
+            identityErrors = result.Errors;
+            return;
+        }
+        await UserManager.AddToRoleAsync(user, "User");
+
+        
+        var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
+        code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+       
+        var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+            NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
+            new Dictionary<string, object?>
+                {
+                    ["userId"] = user.Id,
+                    ["code"] = code,
+                    ["returnUrl"] = ReturnUrl
+                });
+
+        await EmailSender.SendConfirmationLinkAsync(
+            user,
+            Input.Email,
+            $"Будь ласка підтвердьте реєстрцію натиснувши на посилання: <a href=\"{HtmlEncoder.Default.Encode(callbackUrl)}\">Посилання тут</a>"
+        );
+        NavigationManager.NavigateTo("/Account/Login");
+    }
+    private ApplicationUser CreateUser()
+    {
+        try
+        {
+            return Activator.CreateInstance<ApplicationUser>();
+        }
+        catch
+        {
+            throw new InvalidOperationException($"Can't create an instance of '{nameof(ApplicationUser)}'. " +
+                $"Ensure that '{nameof(ApplicationUser)}' is not an abstract class and has a parameterless constructor.");
+        }
+    }
+
+    private IUserEmailStore<ApplicationUser> GetEmailStore()
+    {
+        if (!UserManager.SupportsUserEmail)
+        {
+            throw new NotSupportedException("The default UI requires a user store with email support.");
+        }
+        return (IUserEmailStore<ApplicationUser>)UserStore;
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [Display(Name = "Name")]
+        public string UserName { get; set; } = "";
+
+        [Required]
+        [EmailAddress]
+        [Display(Name = "Email")]
+        public string Email { get; set; } = "";
+
+        [Required]
+        [Display(Name = "Birth Date")]
+        [DataType(DataType.Date)]
+        public DateTime Birth_date { get; set; } = DateTime.Today;
+
+        [Required]
+        [StringLength(100, ErrorMessage = "{0} повинен бути довжиною не менше {2} і не більше {1} символів.", MinimumLength = 6)]
+        [DataType(DataType.Password)]
+        [Display(Name = "Password")]
+        public string Password { get; set; } = "";
+
+        [DataType(DataType.Password)]
+        [Display(Name = "Confirm password")]
+        [Compare("Password", ErrorMessage = "Пароль та підтверджений пароль не збігаються.")]
+        public string ConfirmPassword { get; set; } = "";
+    }
+}

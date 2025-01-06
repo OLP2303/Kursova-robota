@@ -1,0 +1,135 @@
+﻿.table {
+    width: 100%;
+    border-collapse: collapse;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+    .table td {
+        padding: 10px;
+        text-align: center;
+        background-color: #252423;
+        color: #78BAFD;
+        border: 2px solid #78BAFD;
+    }
+
+    .table th {
+        font-weight: bold;
+        text-transform: uppercase;
+        padding: 10px;
+        text-align: center;
+        background-color: #252423;
+        border: 1px solid #78BAFD;
+        color: white;
+    }
+.btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 14px;
+    border: 1px solid transparent;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* Кнопка для видалення */
+.btn-outline-danger {
+    cursor: pointer;
+    color: white;
+    background-color: #dc3545;
+    border: none;
+    height: 40px;
+    width: 100px;
+    border-radius: 20px;
+    
+}
+
+    .btn-outline-danger:hover {
+        background-color: #c82333;
+    }
+
+.btn-outline-primary {
+    cursor: pointer;
+    color: white;
+    background-color: #28a745;
+    border: none;
+    height: 40px;
+    width:100px;
+    border-radius: 20px;
+    
+}
+
+    .btn-outline-primary:hover {
+        background-color: #218838;
+    }
+
+.buttOns {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  
+}
+.d-flex {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+.custom-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width:100px;
+    height: 40px;
+    color: #78BAFD;
+    background-color: #252423;
+    border: none;
+    border-radius: 20px;
+    padding: 0 15px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin:0 0 0 10px;
+}
+
+    .custom-button:hover {
+        background-color: #0056b3;
+    }
+
+    .custom-button .plus-icon {
+        font-size: 25px;
+        margin-left: 5px;
+        font-weight: bold;
+    }
+.buttonAdd {
+    cursor: pointer;
+    color: white;
+    background-color: #28a745;
+    border: none;
+    height: 40px;
+    border-radius: 20px;
+    margin-right: 5px;
+}
+
+    .buttonAdd:hover {
+        background-color: #218838;
+    }
+.buttonCancel {
+    cursor: pointer;
+    color: white;
+    background-color: #dc3545;
+    border: none;
+    height: 40px;
+    border-radius: 20px;
+    margin-left: 5px;
+}
+
+    .buttonCancel:hover {
+        background-color: #c82333;
+    }
+.conteiner {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    margin: 0 0 20px 0;
+}

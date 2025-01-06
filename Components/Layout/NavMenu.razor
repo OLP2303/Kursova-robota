@@ -1,0 +1,200 @@
+﻿@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Identity
+@using BlazorApp2.Data
+@implements IDisposable
+@rendermode InteractiveServer
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+<div class="top-row ps-3 navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <div class="logo-circle">
+
+        </div>
+        <a class="navbar-brand ms-3" href="">Evenity</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Головна
+            </NavLink>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="UserEvent" Match="NavLinkMatch.All">
+                    <span class="bi bi-person-nav-menu" aria-hidden="true"></span> Мої події
+                </NavLink>
+            </div>
+            </Authorized>
+            <NotAuthorized>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Register" Match="NavLinkMatch.All">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Зареєструватись
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Account/Login" Match="NavLinkMatch.All">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Ввійти
+                    </NavLink>
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+      
+        <AuthorizeView>
+            @if (user != null && user.IsInRole("Organiser"))
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="EventAndUser">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Підписані користувачі
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="OrganiserPage">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Управління подіями
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <button class="nav-link" @onclick="ToggleManageAccountMenu">
+                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Акаунт
+                    </button>
+
+                    @if (showManageMenu)
+                    {
+                        <ul class="nav nav-pills flex-column">
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage" Match="NavLinkMatch.All">Профіль</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage/Email">Змінити Email</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage/ChangePassword">Змінити пароль</NavLink>
+                            </li>
+                            <li>
+                                <NavLink class="nav-link" href="/Account/UserPicture" Match="NavLinkMatch.All">Змінити дані профілю</NavLink>
+                            </li>
+                        </ul>
+
+                    }
+                </div>
+
+            }
+            @if (user != null && user.IsInRole("Administrators"))
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="Viewdata">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Список користувачів
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="ManageRole">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Управління ролями
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="viewevent">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Управління подіями
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="attendance">
+                        <span class="bi bi-person-badge-nav-menu" aria-hidden="true"></span> Звіт відвідуваності
+                    </NavLink>
+                </div>
+                <div class="nav-item px-3">
+                    <button class="nav-link" @onclick="ToggleManageAccountMenu">
+                        <span class=" bi bi-list-nested-nav-menu" aria-hidden="true"></span>Акаунт
+                    </button>
+
+                    @if (showManageMenu)
+                    {
+                        <ul class="nav nav-pills flex-column">
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage" Match="NavLinkMatch.All">Профіль</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage/Email">Змінити Email</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage/ChangePassword">Змінити пароль</NavLink>
+                            </li>
+                            <li>
+                                <NavLink class="nav-link" href="/Account/UserPicture" Match="NavLinkMatch.All">Змінити дані профілю</NavLink>
+                            </li>
+
+                        </ul>
+                    }
+                </div>
+            }
+            @if (user != null && user.IsInRole("User"))
+            {
+
+                <div class="nav-item px-3">
+                    <button class="nav-link" @onclick="ToggleManageAccountMenu">
+                        <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Акаунт
+                    </button>
+
+                    @if (showManageMenu)
+                    {
+                        <ul class="nav nav-pills flex-column">
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage" Match="NavLinkMatch.All">Профіль</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage/Email">Змінити Email</NavLink>
+                            </li>
+                            <li class="nav-item">
+                                <NavLink class="nav-link" href="Account/Manage/ChangePassword">Змінити пароль</NavLink>
+                            </li>
+                            <li>
+                                <NavLink class="nav-link" href="/Account/UserPicture" Match="NavLinkMatch.All">Змінити дані профілю</NavLink>
+                            </li>
+                        </ul>
+                    }
+                </div>
+            }
+        </AuthorizeView>
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+    private System.Security.Claims.ClaimsPrincipal user=new();
+    private bool showManageMenu = false;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        user = authState.User;
+        currentUrl = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void ToggleManageAccountMenu()
+    {
+        showManageMenu = !showManageMenu; 
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}
+
+
+
+

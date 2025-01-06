@@ -1,0 +1,52 @@
+﻿
+@page "/UserEvent"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using BlazorApp2.Data
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+<h1>Мої події</h1>
+<div class="row row-cols-1 row-cols-md-3 g-4 mt-4">
+    @foreach (var eventItem in filteredEvents)
+    {
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                @if (eventItem.EventPicture != null)
+                {
+                    <img src="data:image/jpeg;base64,@Convert.ToBase64String(eventItem.EventPicture)" alt="Фото події" style="width: 100%; height: 200px; object-fit: cover" />
+                }
+                else
+                {
+                    <p><em>Зображення відсутнє</em></p>
+                }
+                <div class="card-body">
+                    <h5 class="card-title">@eventItem.Name</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">@eventItem.Date.ToString("f")</h6>
+                    <p class="card-text"><strong>Місце:</strong> @eventItem.Location</p>
+                    <p class="card-text">@eventItem.Description</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+@code{
+    private string UserID = string.Empty;
+    private List<Event> filteredEvents = new();
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var User = await UserManager.GetUserAsync(authState.User);
+        if (User != null)
+        {
+            UserID = User.Id;
+        }
+        filteredEvents = await DbContext.EventsAndUsers
+        .Where(eu => eu.UserId == UserID)      
+        .Select(eu => eu.Event)                
+        .ToListAsync();
+    }
+}

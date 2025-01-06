@@ -1,0 +1,143 @@
+﻿@page "/ManageRole"
+@rendermode InteractiveServer
+@using BlazorApp2.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using BlazorApp2.Components;
+@using Microsoft.AspNetCore.Authorization
+@inject ApplicationDbContext DbContext
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager NavigationManager
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@attribute [Authorize(Roles = "Administrators")]
+    <link href="css/StyleRole.css" rel="stylesheet" />
+<h1>Список користувачів та їх ролі</h1>
+<table class="table ">
+    <thead >
+        <tr>
+            <th>ID</th>
+            <th>Відображуване ім'я</th>
+            <th>Роль</th>
+            <th>Ім'я</th>
+            <th>Додати або вилучити роль</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in users)
+        {
+            <tr>
+                <td>@user.Id</td>
+                <td>@user.User_name</td>
+                <td>
+                    @foreach (var role in userRoles[user.Id])
+                    {
+                        <span class="badge">@role.Name</span>
+                        <br />
+                    }
+                </td>
+                <td>@user.UserName</td>
+                <td>
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-outline-primary btn-sm" @onclick="()=>GetOrganizer(user)">
+                            <div class="btniconOrganiser"></div>
+                            <span>Organiser</span>
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" @onclick="()=>GetAdmin(user)">
+                            <div class="btniconAdmin"></div>
+                            <span>Admin</span>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick="()=>DeleteRole(user)">
+                            <div class="btniconDelete"></div>
+                            <span>Delete</span>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+
+
+@code {
+    private List<ApplicationUser> users = new();
+    private Dictionary<string, List<IdentityRole>> userRoles = new();
+    protected override async Task OnInitializedAsync()
+    {
+        users = await DbContext.Users.ToListAsync(); // Асинхронне завантаження користувачів
+                                                   
+        foreach (var user in users)
+        {
+            // Отримуємо всі ролі користувача з таблиці AspNetUserRoles
+            var roleIds = await DbContext.UserRoles
+                .Where(ur => ur.UserId == user.Id)
+                .Select(ur => ur.RoleId)
+                .ToListAsync();
+
+            var roles = new List<IdentityRole>();
+
+            // Отримуємо всі ролі за їхніми RoleId
+            foreach (var roleId in roleIds)
+            {
+                var role = await RoleManager.FindByIdAsync(roleId);
+                if (role != null)
+                {
+                    roles.Add(role); // Додаємо роль до списку
+                }
+            }
+
+            userRoles[user.Id] = roles; // Зберігаємо ролі для цього користувача
+        }
+    }
+
+
+
+    private async Task GetOrganizer(ApplicationUser user)
+    {
+        if (user != null)
+        {
+           
+            var currentRoles = await UserManager.GetRolesAsync(user);
+
+            
+            if (currentRoles.Any())
+            {
+                await UserManager.RemoveFromRolesAsync(user, currentRoles);
+            }
+            await UserManager.AddToRoleAsync(user, "Organiser");
+            NavigationManager.NavigateTo(NavigationManager.Uri, true);
+       
+
+        }
+    }
+
+    private async Task GetAdmin(ApplicationUser user)
+    {
+        if (user != null)
+        {
+           
+            var currentRoles = await UserManager.GetRolesAsync(user);
+            if (currentRoles.Any())
+            {
+                await UserManager.RemoveFromRolesAsync(user, currentRoles);
+            }
+
+            
+            await UserManager.AddToRoleAsync(user, "Administrators");
+            NavigationManager.NavigateTo(NavigationManager.Uri, true);
+          
+
+        }
+    }
+    private async Task DeleteRole(ApplicationUser user){
+        var currentRoles = await UserManager.GetRolesAsync(user);
+        if (currentRoles.Any())
+        {
+            await UserManager.RemoveFromRolesAsync(user, currentRoles);
+        }
+        await UserManager.AddToRoleAsync(user, "User");
+        NavigationManager.NavigateTo(NavigationManager.Uri, true); 
+       
+    }
+}

@@ -62,14 +62,6 @@
                         <button class="btn btn-warning btn-sm" @onclick="() => PrepareNotification(eventItem.Id)">
                             Надіслати повідомлення
                         </button>
-
-                        @*  @if (selectedEventId == eventItem.Id)
-                        {
-                            <EditForm Model="@input" OnValidSubmit="SendNotification">
-                                <InputText @bind-Value="input.Text" class="form-control" placeholder="Введіть текст сповіщення" />
-                                <button type="submit" class="btn btn-primary mt-2">Відправити</button>
-                            </EditForm>
-                        } *@
                     }
                 </td>
             </tr>
